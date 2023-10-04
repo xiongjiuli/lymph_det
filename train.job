@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name=0925_v2_swfpn_160_hmapv4bbox.py  
+#SBATCH --partition=bme_gpu  
+#SBATCH --output=./log/train_0925_v2_swfpn_160_hmapv4out%j.out
+#SBATCH --error=./log/train_0925_v2_swfpn_160_hmapv4err%j.out
+#SBATCH -N 1
+#SBATCH -n 8
+#SBATCH --gres=gpu:NVIDIAA10080GBPCIe:1
+#SBATCH -t 48:00:00
+
+
+echo ${SLURM_JOB_NODELIST}$
+echo start on $(data)
+python train_v1.py
+echo end on $(data)

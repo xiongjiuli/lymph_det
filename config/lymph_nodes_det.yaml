@@ -1,0 +1,71 @@
+# Config file for AttnFPN-def-DETR
+
+# General training
+experiment_name: lymph_nodes_det
+device: cuda
+val_interval: 10
+debug_mode: False  # Doesn't save checkpoints
+seed: 10
+num_classes : 1
+
+epochs: 4000
+lr: 2e-4
+lr_backbone: 2e-5
+lr_linear_proj_mult: 0.1
+weight_decay: 1e-4
+clip_max_norm: -1   # Not used
+
+# Scheduler
+scheduler_steps: 5000
+
+# Data
+overfit: False # Use same set consisting of one image for train and val
+bbox_padding: 1
+patch_size: (160, 160, 160)
+
+
+cascade:
+  cascade: True
+  stage_one_model_path: 
+
+
+# Models
+model_name: swin3d
+# swin3d / unetr / res101 / swin3d_fpn / 
+
+# Path
+lymph_nodes_data_path: /public_bme/data/xiongjl/lymph_nodes/
+csv_names_root_path: /public_bme/data/xiongjl/uii/csv_files/
+image_npy_path: /public_bme/data/xiongjl/lymph_nodes/
+
+# Dataloader
+batch_size: 2
+shuffle: True
+num_workers: 16
+
+# Hungarian matching
+set_cost_class: 2
+set_cost_bbox: 5
+set_cost_giou: 2
+
+# Losses
+loss_coefs:
+  hmap: 10     # Detection
+  whd: 1
+  offset: 1
+
+
+# evaluator
+patch_size: 160
+overlap: 15
+confidence: 0.35
+test_training_mode_name_path: 
+test_testing_mode_name_path:
+
+
+
+# decode_bbox
+decode_box_kernel_size: 9
+nms_threshold: 0.1
+
+
