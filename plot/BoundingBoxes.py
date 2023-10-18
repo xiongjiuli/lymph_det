@@ -1,6 +1,7 @@
-from BoundingBox import *
-from utils import *
-
+# from BoundingBox import *
+# from utils import *
+from plot.BoundingBox import *
+from plot.utils import *
 
 class BoundingBoxes:
     def __init__(self):

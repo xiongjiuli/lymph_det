@@ -15,10 +15,12 @@ from collections import Counter
 import matplotlib.pyplot as plt
 import numpy as np
 
-from BoundingBox import *
-from BoundingBoxes import *
+# from BoundingBox import *
+# from BoundingBoxes import *
+# from utils import *
+from plot.BoundingBox import *
+from plot.BoundingBoxes import *
 from plot.utils import *
-
 
 class Evaluator:
     def GetPascalVOCMetrics(self,
@@ -96,6 +98,7 @@ class Evaluator:
             # print(f'the npos is {npos}')
             # sort detections by decreasing confidence
             dects = sorted(dects, key=lambda conf: conf[2], reverse=True)
+            # print(f'in the getpascal the dects is {len(dects)}')
             TP = np.zeros(len(dects))
             FP = np.zeros(len(dects))
             # create dictionary with amount of gts for each image
@@ -203,6 +206,7 @@ class Evaluator:
             dict['total FP']: total number of False Negative detections;
         """
         results = self.GetPascalVOCMetrics(boundingBoxes, IOUThreshold, method)
+        # print(f'the results is {results}')
         result = None
         # Each resut represents a class
         for result in results:
@@ -307,7 +311,8 @@ class Evaluator:
                 plt.show()
                 # plt.waitforbuttonpress()
                 # plt.pause(0.05)
-        return ap_str
+            ap = round(average_precision * 100, 2)
+        return ap
         # return results
 
     @staticmethod

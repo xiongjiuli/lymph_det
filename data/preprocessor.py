@@ -10,7 +10,7 @@ import numpy as np
 from scipy.ndimage import binary_dilation
 import csv
 from pathlib import Path
-from hmap_gener_v1 import create_hmap_v4
+from data.hmap_gener_v1 import create_hmap_v4
 import random
 
 def write_to_csv(filename, name, coords, shape):
@@ -32,8 +32,9 @@ def write_to_csv(filename, name, coords, shape):
 def read_imgcoord_fromcsv(name, part):
     #* 读取csv文件中的世界坐标
     # name = '01190830220138'
-    imgcoord = pd.read_csv(f'/data/julia/data_lymph/anno/{part}_refine.csv')
+    imgcoord = pd.read_csv(f'/public_bme/data/xiongjl/lymph_det/csv_files/{part}_npyrefine.csv') # 读取图像坐标系
     raw = imgcoord[imgcoord['name']=="'" + name]
+
     coords = []
     for i in range(len(raw)):
         x = raw.iloc[i, 1]
@@ -52,58 +53,64 @@ def read_imgcoord_fromcsv(name, part):
 def generate_data(data_root_path, part, name):
 
     img_path = data_root_path.joinpath(part).joinpath(name)
-    file_name = img_path.iterdir()
-    img = tio.ScalarImage(os.path.join(img_path, file_name[0]))
+    file_name = img_path.iterdir() # 迭代器不能够去进行索引
+    file_name = list(file_name)
+    if len(file_name) == 0:
+        print(f'the part : {part}, the name : {name} , have no data!!!!!!!!')
+    else:
+        img = tio.ScalarImage(os.path.join(img_path, file_name[0]))
 
-    # * 窗宽窗位设置一下
-    clamped = tio.Clamp(out_min=-160., out_max=240.)
-    clamped_img = clamped(img)
-    # clamped_img.save(f'/data/julia/data_lymph/{part}_processed/{name}_clamp.nii.gz')
+        # * 窗宽窗位设置一下
+        clamped = tio.Clamp(out_min=-160., out_max=240.)
+        clamped_img = clamped(img)
+        # clamped_img.save(f'/data/julia/data_lymph/{part}_processed/{name}_clamp.nii.gz')
 
-    # * resample到（0.7， 0.7， 0.7）
-    resample = tio.Resample(0.7)
-    clamped_img = resample(clamped_img)
-    # print(clamped_img.spacing)
-    
-    # * 归一化到 0-1 之间
-    data_max = clamped_img.data.max()
-    data_min = clamped_img.data.min()
-    norm_data = (clamped_img.data - data_min) / (data_max - data_min)
-    shape = clamped_img.shape
-    data = np.array(norm_data.data.squeeze(0))
-    np.save(f'{data_root_path}/{part}_npy/{name}_image.npy', data)
+        # * resample到（0.7， 0.7， 0.7）
+        resample = tio.Resample(0.7)
+        clamped_img = resample(clamped_img)
+        # print(clamped_img.spacing)
+        
+        # * 归一化到 0-1 之间
+        data_max = clamped_img.data.max()
+        data_min = clamped_img.data.min()
+        norm_data = (clamped_img.data - data_min) / (data_max - data_min)
+        shape = clamped_img.shape[1:]
+        data = np.array(norm_data.data.squeeze(0))
+        np.save(f'{data_root_path}/{part}_npy/{name}_image.npy', data)
 
-    # * 读取csv文件中的世界坐标
-    worldcoord = pd.read_csv(f'{data_root_path}/lymph_csv_refine/CTA_thin_std_{part}_lymph_refine.csv')
-    csv_filename = f'{data_root_path}/lymph_csv_refine/{part}_refine.csv'
-    raw = worldcoord[worldcoord['image_path'].str.contains(name)]
-    coords = []
-    for i in range(len(raw)):
-        x = raw.iloc[i, 2]
-        y = raw.iloc[i, 3]
-        z = raw.iloc[i, 4]
-        width = raw.iloc[i, 5]
-        height = raw.iloc[i, 6]
-        depth = raw.iloc[i, 7]
-        coords.append([x, y, z, width, height, depth]) # 这个是世界坐标系
-    # print(f'the world coords is {coords}')
+        # * 读取csv文件中的世界坐标
+        worldcoord = pd.read_csv(f'{data_root_path}/lymph_csv_refine/CTA_thin_std_{part}_lymph_refine.csv')
+        # csv_filename = f'{data_root_path}/lymph_csv_refine/{part}_npyrefine.csv'
+        csv_filename = f'/public_bme/data/xiongjl/lymph_det/csv_files/{part}_npyrefine.csv'
+        raw = worldcoord[worldcoord['image_path'].str.contains(name)]
+        coords = []
+        for i in range(len(raw)):
+            x = raw.iloc[i, 2]
+            y = raw.iloc[i, 3]
+            z = raw.iloc[i, 4]
+            width = raw.iloc[i, 5]
+            height = raw.iloc[i, 6]
+            depth = raw.iloc[i, 7]
+            coords.append([x, y, z, width, height, depth]) # 这个是世界坐标系
+        # print(f'the world coords is {coords}')
 
-    # * 把世界坐标系转化为图像坐标系
-    origin = img.origin
-    # print(f'the origin is {origin}')
-    img_coords = []
-    for coord in coords:
-        img_coord = (np.array(coord[0:3]) - np.array(origin) * np.array([-1., -1., 1.]) ) / np.array([0.7, 0.7, 0.7]) # img.spacing
-        coord[3: 6] = coord[3: 6] / np.array([0.7, 0.7, 0.7])
-        img_coords.append([img_coord[0], img_coord[1], img_coord[2], coord[3], coord[4], coord[5]])   #! xyzwhd
-    # print(f'the image coord is {img_coords}')
+        # * 把世界坐标系转化为图像坐标系
+        origin = img.origin
+        # print(f'the origin is {origin}')
+        img_coords = []
+        for coord in coords:
+            img_coord = (np.array(coord[0:3]) - np.array(origin) * np.array([-1., -1., 1.]) ) / np.array([0.7, 0.7, 0.7]) # img.spacing
+            coord[3: 6] = coord[3: 6] / np.array([0.7, 0.7, 0.7])
+            img_coords.append([img_coord[0], img_coord[1], img_coord[2], coord[3], coord[4], coord[5]])   #! xyzwhd
+        # print(f'the image coord is {img_coords}')
 
-    # 调用函数来写入数据
-    write_to_csv(csv_filename, name, img_coords, shape)
+        # 调用函数来写入数据
+        # write_to_csv(csv_filename, name, img_coords, shape)
 
-    # * 开始生成并且保存这个hmap
-    hmap = create_hmap_v4(img_coords, shape[1:])
-    np.save(f'{data_root_path}/{part}_npy/{name}_hmap.npy', hmap)
+        # * 开始生成并且保存这个hmap
+        # print(f'the hmap shape is {shape}')
+        hmap = create_hmap_v4(img_coords, shape)
+        np.save(f'{data_root_path}/{part}_npy/{name}_hmap.npy', hmap)
 
     return data, hmap
 
@@ -183,7 +190,7 @@ def crop_data_region(part, name, image, hmap, center, crop_size, p=0.6, augmenta
         image = np.pad(image, ((0, pad_width), (0, pad_height), (0, pad_depth)), mode='constant')
         width, height, depth = image.shape[:]
 
-    random.seed(1)
+    # random.seed(1)
     if random.random() < p:
         x_c, y_c, z_c = center
         x1 = x_c - crop_width/2
@@ -249,5 +256,39 @@ def crop_data_region(part, name, image, hmap, center, crop_size, p=0.6, augmenta
 
 
 
+def process_nii_image(image_path, bboxes, output_path):
+    # 加载nii图像
+    img = tio.ScalarImage(image_path)
+    data = img.data[0, :, :, :]
+    # print(bboxes)
+    # 遍历每个框
+    for bbox in bboxes:
+        
+        x1, y1, z1, x2, y2, z2 = map(int, bbox)
+        # print(x1, y1, z1, x2, y2, z2)
+        # 将框内的像素值设置为50
+        # 将框的边线上的像素值设置为50
+        data[x1:x2+1, y1:y1+1, z1:z2+1] = 250.
+        data[x1:x2+1, y2:y2+1, z1:z2+1] = 250.
+        data[x1:x1+1, y1:y2+1, z1:z2+1] = 250.
+        data[x2:x2+1, y1:y2+1, z1:z2+1] = 250.
+        data[x1:x2+1, y1:y2+1, z1:z1+1] = 250.
+        data[x1:x2+1, y1:y2+1, z2:z2+1] = 250.
+        # print(f'data max is {data.max()}')
+    
+    # 保存结果
+    affine =  np.diag([-0.7, -0.7, 0.7, 1.])
+    new_img = tio.ScalarImage(tensor=data.unsqueeze(0), affine=affine)
+    new_img.save(output_path)
+    return print('image save done')
 
 
+
+if __name__ == "__main__":
+    name = '02200403216085'
+    part = 'training'
+    output_path = '/public_bme/data/xiongjl/lymph_det/test.nii'
+    image_path = '/public_bme/data/xiongjl/lymph_nodes/training/02200403216085/std_1.0_6.nii.gz'
+    bboxes = read_imgcoord_fromcsv(name, part)
+    print(bboxes)
+    process_nii_image(image_path, bboxes, output_path)

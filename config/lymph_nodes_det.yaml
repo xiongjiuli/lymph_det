@@ -1,47 +1,48 @@
 # Config file for AttnFPN-def-DETR
 
 # General training
-experiment_name: lymph_nodes_det
+experiment_name: lymph_nodes_det, strat with the 0 model, with cascade
 device: cuda
 val_interval: 10
-debug_mode: False  # Doesn't save checkpoints
-seed: 10
+debug_mode: True  # Doesn't save checkpoints
+seed: 42
 num_classes : 1
 
 epochs: 4000
 lr: 2e-4
-lr_backbone: 2e-5
-lr_linear_proj_mult: 0.1
-weight_decay: 1e-4
-clip_max_norm: -1   # Not used
+
+
+save_for_see: True
 
 # Scheduler
 scheduler_steps: 5000
+gamma: 0.1
 
 # Data
 overfit: False # Use same set consisting of one image for train and val
 bbox_padding: 1
-patch_size: (160, 160, 160)
+patch_size: [160, 160, 160]
 
 
 cascade:
   cascade: True
-  stage_one_model_path: 
+  stage_one_model_path: /public_bme/data/xiongjl/uii/checkpoints/0912_v1_swin_crop160_hmapv4-1485.pt
 
-
-# Models
+resume: False
 model_name: swin3d
 # swin3d / unetr / res101 / swin3d_fpn / 
 
 # Path
 lymph_nodes_data_path: /public_bme/data/xiongjl/lymph_nodes/
-csv_names_root_path: /public_bme/data/xiongjl/uii/csv_files/
+csv_names_root_path: /public_bme/data/xiongjl/lymph_det/csv_files/
 image_npy_path: /public_bme/data/xiongjl/lymph_nodes/
+log_path: /public_bme/data/xiongjl/lymph_det/logfile/
+image_save_path: /public_bme/data/xiongjl/lymph_det/
 
 # Dataloader
-batch_size: 2
+batch_size: 1
 shuffle: True
-num_workers: 16
+num_workers: 0
 
 # Hungarian matching
 set_cost_class: 2
@@ -50,19 +51,20 @@ set_cost_giou: 2
 
 # Losses
 loss_coefs:
-  hmap: 10     # Detection
-  whd: 1
-  offset: 1
-
+  hmap: 10.     # Detection
+  whd: 0.1
+  offset: 1.
+point_weight: 4
+best_loss: 10000.
 
 # evaluator
-patch_size: 160
-overlap: 15
+evaluator_threshold: 50
+overlap: [15, 15, 15]
 confidence: 0.35
-test_training_mode_name_path: 
-test_testing_mode_name_path:
-
-
+test_training_mode_name_path: /public_bme/data/xiongjl/lymph_det/csv_files/part_testing_trainingnames.csv
+test_testing_mode_name_path: /public_bme/data/xiongjl/lymph_det/csv_files/part_testing_names.csv
+iou_confi: 0.1
+ap_confi: 0.35
 
 # decode_bbox
 decode_box_kernel_size: 9

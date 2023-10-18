@@ -40,7 +40,7 @@ class detCollator:
             offset = dct['offset']
             mask = dct['mask']
             whd = dct['whd']
-            name = dct['name'] 
+            name = dct['name']
     
             batch_images.append(image)
             batch_hmap.append(hmap)
@@ -49,9 +49,11 @@ class detCollator:
             batch_whd.append(whd)
             batch_name.append(name)
 
+        batch_images = [torch.from_numpy(np_array) for np_array in batch_images]
+
         dct = {}
-        dct['hmap'] = torch.stack(batch_hmap)
-        dct['input'] = torch.stack(batch_images)
+        dct['hmap'] = torch.stack(batch_hmap).unsqueeze(1)
+        dct['input'] = torch.stack(batch_images).unsqueeze(1)
         dct['mask'] = torch.stack(batch_mask)
         dct['offset'] = torch.stack(batch_offset)
         dct['whd'] = torch.stack(batch_whd)

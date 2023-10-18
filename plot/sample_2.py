@@ -13,9 +13,13 @@
 # import _init_paths
 import os
 import matplotlib.pyplot as plt
-from BoundingBox import BoundingBox
-from BoundingBoxes import BoundingBoxes
-from Evaluator import *
+# from BoundingBox import BoundingBox
+# from BoundingBoxes import BoundingBoxes
+# from Evaluator import *
+# from utils import *
+from plot.BoundingBox import BoundingBox
+from plot.BoundingBoxes import BoundingBoxes
+from plot.Evaluator import *
 from plot.utils import *
 import numpy as np
 
@@ -33,15 +37,20 @@ def get_gtboxes(folder_path, filename):
 
 def get_predboxes(pred_file_name, filename, confidence):
     result = []
-    folder_path = f'/public_bme/data/xiongjl/uii/lib/bbox_txt/{pred_file_name}'
-    if filename.endswith('.txt'):
-        with open(os.path.join(folder_path, filename), 'r') as f:
-            for line in f:
-                data = line.strip().split()
-                confi = float(data[1])
-                if confi >= confidence:
-                    x1, y1, z1, x2, y2, z2 = map(float, data[2:8])
-                    result.append([x1, y1, z1, x2, y2, z2])
+    folder_path = f'/public_bme/data/xiongjl/lymph_det/plot/bbox_txt/{pred_file_name}'
+    if filename.endswith('.txt'):   
+        txt_path = os.path.join(folder_path, filename)
+        if os.path.exists(txt_path):
+            with open(txt_path, 'r') as f:
+                for line in f:
+                    data = line.strip().split()
+                    confi = float(data[1])
+                    if confi >= confidence:
+                        x1, y1, z1, x2, y2, z2 = map(float, data[2:8])
+                        result.append([x1, y1, z1, x2, y2, z2])
+        else:
+            result.append([0., 0., 0., 0., 0., 0.])
+            print(f'in the {filename} no pred bbox!')
     return result
 
 
@@ -172,6 +181,7 @@ def getBoundingBoxes(confi, gt_filename, det_filename):
             h = float(splitLine[5])
             d = float(splitLine[6])
             iMagshape = splitLine[7]
+            # print(f'in the gt box the imageshape is {iMagshape}')
             bb = BoundingBox(
                 nameOfImage,
                 idClass,
@@ -220,6 +230,7 @@ def getBoundingBoxes(confi, gt_filename, det_filename):
                 h = float(splitLine[6])
                 d = float(splitLine[7])
                 iMagshape = splitLine[8]
+                # print(f'in the pred box the imageshape is {iMagshape}')
                 bb = BoundingBox(
                     nameOfImage,
                     idClass,
@@ -240,6 +251,9 @@ def getBoundingBoxes(confi, gt_filename, det_filename):
 
 
 def plot_froc(pred_file_name, train_data, iou_confi=0.01, suffix=''):
+    # print(pred_file_name)
+    pred_file_name = pred_file_name.split('/')[-2]
+    # print(f'int rhe plot froc the pred file name is {pred_file_name}')
     # 计算这个 fROC 曲线
     false_positives_per_image = []
     recall = []
@@ -248,7 +262,7 @@ def plot_froc(pred_file_name, train_data, iou_confi=0.01, suffix=''):
         # 取出这个prediction boxes 和 gt boxes
         
         if train_data == True:
-            folder_path = f'/public_bme/data/xiongjl/uii/lib/bbox_txt/train_groundtruths' # 指定文件夹路径
+            folder_path = f'/public_bme/data/xiongjl/lymph_det/plot/bbox_txt/train_groundtruths' # 指定文件夹路径
             gtall_nodes = 0
             predall_nodes = 0
             tp_nodes = 0
@@ -266,7 +280,7 @@ def plot_froc(pred_file_name, train_data, iou_confi=0.01, suffix=''):
                 gtall_nodes += len(ground_truth_boxes)
 
         else:
-            folder_path = f'/public_bme/data/xiongjl/uii/lib/bbox_txt/groundtruths' # 指定文件夹路径
+            folder_path = f'/public_bme/data/xiongjl/lymph_det/plot/bbox_txt/groundtruths' # 指定文件夹路径
             gtall_nodes = 0
             tp_nodes = 0
             fp_nodes = 0
@@ -287,9 +301,9 @@ def plot_froc(pred_file_name, train_data, iou_confi=0.01, suffix=''):
         recall.append(tPs)
 
         if train_data == True:
-            fps = fp_nodes / len(os.listdir('/public_bme/data/xiongjl/uii/lib/bbox_txt/train_groundtruths'))
+            fps = fp_nodes / len(os.listdir('/public_bme/data/xiongjl/lymph_det/plot/bbox_txt/train_groundtruths'))
         else:
-            fps = fp_nodes / len(os.listdir('/public_bme/data/xiongjl/uii/lib/bbox_txt/groundtruths'))
+            fps = fp_nodes / len(os.listdir('/public_bme/data/xiongjl/lymph_det/plot/bbox_txt/groundtruths'))
         false_positives_per_image.append(fps)
 
     print(f'false_positives_per_image is {false_positives_per_image}')
@@ -306,13 +320,24 @@ def plot_froc(pred_file_name, train_data, iou_confi=0.01, suffix=''):
 
 
 def plot_ap(pred_file_name, train_data, confi, iou_confi, suffix=''):
+    # print(f'pred_file_name is {pred_file_name}')
+    pred_file_name = pred_file_name.split('/')[-2]
+
+
+    # some xiugai in the plot
+
+
+
+
+    # print(pred_file_name)
+    # print(f'in the plot ap the perd file namw is {pred_file_name}')
     # Read txt files containing bounding boxes (ground truth and detections)
     if train_data == True:
         boundingboxes = getBoundingBoxes(confi=confi, gt_filename='train_groundtruths', det_filename=pred_file_name)
-        annotation = f'{pred_file_name} {suffix}confi:{confi}'
+        annotation = f'{pred_file_name} {iou_confi}{suffix}confi:{confi}'
     else:
         boundingboxes = getBoundingBoxes(confi=confi, gt_filename='groundtruths', det_filename=pred_file_name)
-        annotation = f'{pred_file_name} {suffix}confi:{confi}'
+        annotation = f'{pred_file_name} {iou_confi}{suffix}confi:{confi}'
     # Uncomment the line below to generate images based on the bounding boxes
     # createImages(dictGroundTruth, dictDetected)
     # Create an evaluator object in order to obtain the metrics
@@ -334,101 +359,140 @@ def plot_ap(pred_file_name, train_data, confi, iou_confi, suffix=''):
 
 
 
-def plot(config, txt_paths, epoch):
-
+def plot(config, txt_paths, epoch, timesteamp):
+    # txt_path is the whole path
     for path in txt_paths:
         if 'train-' in path:
             txt_path_training = path
+            # print('trianing=======================')
         else:
             txt_path_testing = path
+            # print('testing=======================')
     plt.figure()
     iou_confi = config['iou_confi']
     ap_confi = config['ap_confi']
+    # print(f'the txt_path_testing is {txt_path_testing}')
     ap_str_testing_01 = plot_ap(pred_file_name=txt_path_testing, train_data=False, confi=ap_confi, iou_confi=0.01, suffix='')
-    ap_str_testing_10 = plot_ap(pred_file_name=txt_path_testing, train_data=False, confi=ap_confi, iou_confi=0.1, suffix='')
+    # ap_str_testing_10 = plot_ap(pred_file_name=txt_path_testing, train_data=False, confi=ap_confi, iou_confi=0.1, suffix='')
     ap_str_testing_50 = plot_ap(pred_file_name=txt_path_testing, train_data=False, confi=ap_confi, iou_confi=0.5, suffix='')
-    ap_str_testing_75 = plot_ap(pred_file_name=txt_path_testing, train_data=False, confi=ap_confi, iou_confi=0.75, suffix='')
+    # ap_str_testing_75 = plot_ap(pred_file_name=txt_path_testing, train_data=False, confi=ap_confi, iou_confi=0.75, suffix='')
 
     ap_str_training_01 = plot_ap(pred_file_name=txt_path_training, train_data=True, confi=ap_confi, iou_confi=0.01, suffix='')
-    ap_str_training_10 = plot_ap(pred_file_name=txt_path_training, train_data=True, confi=ap_confi, iou_confi=0.1, suffix='')
+    # ap_str_training_10 = plot_ap(pred_file_name=txt_path_training, train_data=True, confi=ap_confi, iou_confi=0.1, suffix='')
     ap_str_training_50 = plot_ap(pred_file_name=txt_path_training, train_data=True, confi=ap_confi, iou_confi=0.5, suffix='')
-    ap_str_training_75 = plot_ap(pred_file_name=txt_path_training, train_data=True, confi=ap_confi, iou_confi=0.75, suffix='')
+    # ap_str_training_75 = plot_ap(pred_file_name=txt_path_training, train_data=True, confi=ap_confi, iou_confi=0.75, suffix='')
 
     plt.grid(True)
-    plt.savefig(f"{config['lymph_nodes_data_path']}/png_img/PR Curve {config['model_name']} iou {iou_confi}-thres {ap_confi}-{epoch}.png")
+    plt.savefig(f"{config['image_save_path']}png_img/PR Curve {config['model_name']} iou {iou_confi}-thres {ap_confi}-{epoch}{timesteamp}.png")
+    plt.close()
 
-    plot_froc(pred_file_name=txt_path_testing, train_data=False, iou_confi=iou_confi, suffix='')
-    plot_froc(pred_file_name=txt_path_training, train_data=True, iou_confi=iou_confi, suffix='')
+    plt.figure()
+    plot_froc(pred_file_name=txt_path_testing, train_data=False, iou_confi=iou_confi, suffix=f'{iou_confi}')
+    plot_froc(pred_file_name=txt_path_training, train_data=True, iou_confi=iou_confi, suffix=f'{iou_confi}')
     plt.grid()
     plt.legend()
     plt.xlabel('False Positives Per Image')
     plt.ylabel('True Positive Fraction (recall)')
     plt.title('fROC Curve')
-    plt.savefig(f"{config['lymph_nodes_data_path']}/png_img/fROC Curve {config['model_name']} iou{iou_confi}-{epoch}.png")
-    
+    plt.savefig(f"{config['image_save_path']}png_img/fROC Curve {config['model_name']} iou{iou_confi}-{epoch}{timesteamp}.png")
+    plt.close()
+
     results = {}
     results['AP_IoU_0.01'] = ap_str_testing_01
-    results['AP_IoU_0.10'] = ap_str_testing_10
+    # results['AP_IoU_0.10'] = ap_str_testing_10
     results['AP_IoU_0.50'] = ap_str_testing_50
-    results['AP_IoU_0.75'] = ap_str_testing_75
+    # results['AP_IoU_0.75'] = ap_str_testing_75
+    results['AP_IoU_0.01_train'] = ap_str_training_01
+    # results['AP_IoU_0.10_train'] = ap_str_training_10
+    results['AP_IoU_0.50_train'] = ap_str_training_50
+    # results['AP_IoU_0.75_train'] = ap_str_training_75
 
     return results
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
 
-    plt.figure()
-    iou_confi = 0.05
-    ap_confi = 0.45
-    train_data = True
+#     config = {}
+#     config['iou_confi'] = 0.1
+#     config['ap_confi'] = 0.35
+#     config['image_save_path'] = '/public_bme/data/xiongjl/lymph_det/'
+#     config['model_name'] = 'swin3d'
+#     txt_paths = ['/public_bme/data/xiongjl/lymph_det/plot/bbox_txt/swin3d_50_295628/']
+#     epoch = 50
+#     timesteamp = 295628
+#     # print(f'out the plot the txt_paths is {txt_paths}')
+#     plot(config, txt_paths, epoch, timesteamp)
 
-    model_names = [
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # plt.figure()
+    # iou_confi = 0.05
+    # ap_confi = 0.45
+    # train_data = True
+
+    # model_names = [
 
         
 
-        'train-swin_crop160_hmapv4-1485',
-        # 'train-swin_crop160_hmapv4-620',
-        # 'swin_crop160_hmapv4-1485_9_0.1',
-        # 'swin_crop160_hmapv4-1485_11_0.1',
-        'train-swincsacade_crop160_hmapv4_best-65_7_0.15',
-        # 'train-unetr_crop160_hmapv4-360',
-        # 'unetr_crop160_hmapv4_best-160_9_0.1',
-        # 'unetr_crop160_hmapv4_best-160_11_0.1',
-        #train- 'res101_crop256_hmapv4_best-220',
-        #train- 'res101_crop256_hmapv4-525',
-        #train- 'res101_crop256_hmapv4-995',
-        #train- 'train-swin_crop160_hmapv4-620',
-        #train- 'swin_crop160_hmapv5_best-395', 
-        # 'train-swin_crop160_hmapv5-600',
-        # 'train-swin_crop160_hmapv5-860',
+    #     'train-swin_crop160_hmapv4-1485',
+    #     # 'train-swin_crop160_hmapv4-620',
+    #     # 'swin_crop160_hmapv4-1485_9_0.1',
+    #     # 'swin_crop160_hmapv4-1485_11_0.1',
+    #     'train-swincsacade_crop160_hmapv4_best-65_7_0.15',
+    #     # 'train-unetr_crop160_hmapv4-360',
+    #     # 'unetr_crop160_hmapv4_best-160_9_0.1',
+    #     # 'unetr_crop160_hmapv4_best-160_11_0.1',
+    #     #train- 'res101_crop256_hmapv4_best-220',
+    #     #train- 'res101_crop256_hmapv4-525',
+    #     #train- 'res101_crop256_hmapv4-995',
+    #     #train- 'train-swin_crop160_hmapv4-620',
+    #     #train- 'swin_crop160_hmapv5_best-395', 
+    #     # 'train-swin_crop160_hmapv5-600',
+    #     # 'train-swin_crop160_hmapv5-860',
         
-    ]
+    # ]
 
-    for names in model_names:
-        plot_ap(pred_file_name=names, train_data=train_data, confi=ap_confi, iou_confi=iou_confi, suffix='')
+    # for names in model_names:
+    #     plot_ap(pred_file_name=names, train_data=train_data, confi=ap_confi, iou_confi=iou_confi, suffix='')
 
-    plt.grid(True)
-    # plt.show()
-    plt.savefig(f"/public_bme/data/xiongjl/uii/png_img/PR Curve iou {iou_confi}-thres {ap_confi}.png")
+    # plt.grid(True)
+    # # plt.show()
+    # plt.savefig(f"/public_bme/data/xiongjl/uii/png_img/PR Curve iou {iou_confi}-thres {ap_confi}.png")
 
     
-    fig, axes = plt.subplots()
-    for name in model_names:
-        plot_froc(pred_file_name=name, train_data=train_data, iou_confi=iou_confi, suffix='')
+    # fig, axes = plt.subplots()
+    # for name in model_names:
+    #     plot_froc(pred_file_name=name, train_data=train_data, iou_confi=iou_confi, suffix='')
 
 
-    # x_ticks = [0, 1/8, 1/4, 1/2, 1, 2, 4, 8] # 生成x轴的刻度值
-    # y_ticks = np.arange(0, 1.1, 0.1) # 生成y轴的刻度值
+    # # x_ticks = [0, 1/8, 1/4, 1/2, 1, 2, 4, 8] # 生成x轴的刻度值
+    # # y_ticks = np.arange(0, 1.1, 0.1) # 生成y轴的刻度值
 
-    # # 设置x轴和y轴的刻度
-    # plt.xticks(x_ticks, [str(val) for val in x_ticks])
-    # plt.yticks(y_ticks)
-    # 显示网格线
-    plt.grid()
-    plt.legend()
-    plt.xlabel('False Positives Per Image')
-    plt.ylabel('True Positive Fraction (recall)')
-    plt.title('fROC Curve')
-    # 保存图像为PNG格式文件
-    plt.savefig(f"/public_bme/data/xiongjl/uii/png_img/fROC Curve iou{iou_confi}.png")
-    # plt.show()
+    # # # 设置x轴和y轴的刻度
+    # # plt.xticks(x_ticks, [str(val) for val in x_ticks])
+    # # plt.yticks(y_ticks)
+    # # 显示网格线
+    # plt.grid()
+    # plt.legend()
+    # plt.xlabel('False Positives Per Image')
+    # plt.ylabel('True Positive Fraction (recall)')
+    # plt.title('fROC Curve')
+    # # 保存图像为PNG格式文件
+    # plt.savefig(f"/public_bme/data/xiongjl/uii/png_img/fROC Curve iou{iou_confi}.png")
+    # # plt.show()

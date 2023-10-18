@@ -8,15 +8,15 @@ from pathlib import Path
 import numpy as np
 import torch
 import monai
-
 from trainer_v1 import Trainer
 from data.dataloader_v1 import get_loader
-from utils.io_v1 import get_config, write_json, get_meta_data
+from utils.io_v1 import get_config, write_json, get_meta_data, creat_logging
 from models.swin_unet3d_fpn_v1 import swinUnet_3D_fpn
 from models.res101_v1 import CenterNet
 from models.swin_unet3d_v1 import swinUnet_p_3D
 from models.swin_unetr_v1 import SwinUNETR
 from criterion_v1 import Criterion
+import datetime
 
 
 def match(n, keywords):
@@ -27,8 +27,11 @@ def match(n, keywords):
             break
     return out
 
-def train(config, args):
+def train(config, args, timestamp):
 
+    log_file_path = f'/public_bme/data/xiongjl/lymph_det/logfile/{config["model_name"]}-{timestamp}.log'
+    logger = creat_logging(log_file_path)
+    print(f'the loger file :{log_file_path} has be created')
     device = config['device']
     # Build necessary components
     train_loader = get_loader(config, 'training')
@@ -62,16 +65,18 @@ def train(config, args):
         print(f'model name is wrong! now the model name is {config["model_name"]}')
 
     model = model.to(device=device)
-    criterion = Criterion(config).to(device=device)
+    criterion = Criterion(config) # .to(device=device)
 
     optim = torch.optim.Adam(
-        model.parameters(), lr=float(config['lr']), weight_decay=float(config['weight_decay'])
+        model.parameters(), lr=float(config['lr'])
     )
-    scheduler = torch.optim.lr_scheduler.StepLR(optim, config['scheduler_steps'])
+    scheduler = torch.optim.lr_scheduler.StepLR(optim, config['scheduler_steps'], gamma=config['gamma'])
 
     # Load checkpoint if applicable
-    if args.resume is not None:
-        checkpoint = torch.load(Path(args.resume))
+    if config['resume'] is not False:
+        checkpoint = torch.load(Path(config['resume']))
+        print(f'the path of the checkpoint is {Path(config["resume"])}')
+        print('the model have been loaded @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
         # checkpoint['scheduler_state_dict']['step_size'] = config['lr_drop']
 
         # Unpack and load content
@@ -80,9 +85,13 @@ def train(config, args):
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         epoch = checkpoint['epoch']
         metric_start_val = checkpoint['metric_max_val']
+        # model.load_state_dict(checkpoint['model'])
+        # optim.load_state_dict(checkpoint['opt'])
+        # epoch = 19
+        # metric_start_val = 0.
     else:
         epoch = 0
-        metric_start_val = 0
+        metric_start_val = 0.
 
     # Init logging
     path_to_run = Path(os.getcwd()) / 'runs' / config['model_name']
@@ -90,22 +99,26 @@ def train(config, args):
 
     # Get meta data and write config to run
     config.update(get_meta_data())
-    write_json(config, path_to_run / 'config.json')
+    write_json(config, path_to_run / f'{timestamp}_config.json')
 
     # Build trainer and start training
     trainer = Trainer(
         train_loader, val_loader, model, criterion, optim, scheduler, device, config, 
-        path_to_run, epoch, metric_start_val
+        path_to_run, epoch, metric_start_val, logger, timestamp
     )
     trainer.run()
         
 
 if __name__ == "__main__":
+    
+    torch.multiprocessing.set_start_method('spawn')
     parser = argparse.ArgumentParser()
 
     # Add minimal amount of args (most args should be set in config files)
     parser.add_argument("--config", type=str, default='lymph_nodes_det')
-    parser.add_argument("--resume", type=str, help="Path to checkpoint to use.", default=None)
+    # parser.add_argument("--resume", type=str, help="Path to checkpoint to use.", default='/public_bme/data/xiongjl/lymph_det/runs/swin3d/1017003600_model_last.pt')
+    # parser.add_argument("--resume", type=str, help="Path to checkpoint to use.", default="/public_bme/data/xiongjl/uii/checkpoints/0912_v1_swin_crop160_hmapv4_best-1000.pt")
+    # parser.add_argument("--resume", type=str, help="Path to checkpoint to use.", default=None)
     args = parser.parse_args()
 
     # Get relevant configs
@@ -119,5 +132,6 @@ if __name__ == "__main__":
 
     torch.backends.cudnn.benchmark = False  # performance vs. reproducibility
     torch.backends.cudnn.deterministic = True
-
-    train(config, args)
+    now = datetime.datetime.now()
+    timestamp = now.strftime("%m%d%H%M%S")
+    train(config, args, timestamp)

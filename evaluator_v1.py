@@ -15,7 +15,9 @@ import shutil
 import random
 from time import time
 from pathlib import Path
-
+from data.preprocessor import generate_data
+from time import time
+from utils.io_v1 import npy2nii
 # os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 #* the test is for window crop for a image
 
@@ -28,7 +30,8 @@ class DetectionEvaluator:
         # self._train_data = self._config['train_data']
         self._confidence = self._config['confidence']
 
-    def __call__(self, model, number_epoch):
+    def __call__(self, model, number_epoch, timesteamp):
+        print(f'>start to Evaluation...{number_epoch}')
         test_names = []
         txt_paths = []
         file_paths = [self._config['test_training_mode_name_path'],
@@ -47,36 +50,60 @@ class DetectionEvaluator:
             scale = [1., 1., 1.]
             step = [pahs - ovlap for pahs, ovlap in zip(self._patch_size, self._overlap)]
             no_pred_dia = []
-            for name in tqdm(test_names):
+            pbar = tqdm(test_names)
+            for name in pbar:
+                pbar.set_description('Evaluation')
                 data_root_path = Path(self._config['lymph_nodes_data_path'])
                 image_path = data_root_path.joinpath(f'{part}_npy').joinpath(f'{name}_image.npy')
-                image_data = np.load(image_path)
+                if image_path.exists():
+                    image_data = np.load(image_path)
+                else:
+                    # time_gen = time()
+                    image_data, _ = generate_data(data_root_path, part, name)
+                    # print(f'the time of generate data is {time() - time_gen}')
                 shape = image_data.shape
-                image_patches = sliding_window_3d_volume_padded(image_data, patch_size=self._patch_size, stride=step) 
+                time_slid = time()
+                image_patches, arr_pad_shape = sliding_window_3d_volume_padded(image_data, patch_size=self._patch_size, stride=step) 
+                # print(f'the time of slidedata is {time() - time_slid}')
                 #* the image_patch is a list consist of the all patch of a whole image
                 #* each element in the list is a dict consist of start point and tensor(input)
                 label_xyzwhd = name2coord(self._config, part, name)
                 # print(f'========================{name}========================')
 
-                whole_hmap = np.zeros(image_data.shape())
-                whole_whd = np.zeros(np.hstack(((3), image_data.shape())))
-                whole_offset = np.zeros(np.hstack(((3), image_data.shape())))
+                # whole_hmap = np.zeros(arr_pad_shape)
+                # whole_whd = np.zeros(np.hstack(((3), arr_pad_shape)))
+                # whole_offset = np.zeros(np.hstack(((3), arr_pad_shape)))
+                time_model = time()
+                # print(f'the number of patch is {len(image_patches)}')
+                pred_bboxes = []
                 for image_patch in image_patches:
                     with torch.no_grad():
                         image_input = image_patch['image'].unsqueeze(0)
                         point = image_patch['point'][1:]
                         order = image_patch['point'][0]
                         image_input = image_input.cuda()
-                
+
                         pred_hmap, pred_whd, pred_offset = model(image_input)
-
-                        whole_hmap = place_small_image_in_large_image(whole_hmap, pred_hmap, point)
-                        whole_whd = place_small_image_in_large_image(whole_whd, pred_whd, point)
-                        whole_offset = place_small_image_in_large_image(whole_offset, pred_offset, point)
-                        # pred_bbox = decode_bbox(pred_hmap, pred_whd, pred_offset, scale, self._confidence, reduce=1., cuda=True, point=point)
+                        # import pdb
+                        # pdb.set_trace()
+                        # whole_hmap = place_small_image_in_large_image(whole_hmap, pred_hmap.squeeze(0).squeeze(0).cpu(), point)
+                        # whole_whd = place_small_image_in_large_image(whole_whd, pred_whd.squeeze(0).cpu(), point)
+                        # whole_offset = place_small_image_in_large_image(whole_offset, pred_offset.squeeze(0).cpu(), point)
+                        pred_bbox = decode_bbox(self._config, pred_hmap, pred_whd, pred_offset, scale, self._confidence, reduce=1., cuda=True, point=point)
+                        pred_bboxes.append(pred_bbox)
                         # pred_bboxes.append(pred_bbox)
+                # print(f'the time of model is {time() - time_model}')
+                # whole_hmap = torch.from_numpy(whole_hmap).unsqueeze(0).unsqueeze(0)
+                # whole_whd = torch.from_numpy(whole_whd).unsqueeze(0)
+                # whole_offset = torch.from_numpy(whole_offset).unsqueeze(0)
 
-                pred_bboxes = decode_bbox(self._config, whole_hmap, whole_whd, whole_offset, scale, self._confidence, reduce=1., cuda=True, point=point)
+                # if self._config['save_for_see']:
+                #     npy2nii(whole_hmap, f'whole_hmap_forsee_test')
+                #     npy2nii(image_data, f'whole_image_forsee_test')
+
+                # time_bbox = time()
+                # pred_bboxes = decode_bbox(self._config, whole_hmap, whole_whd, whole_offset, scale, self._confidence, reduce=1., cuda=True, point=point)
+                # print(f'the time of bbox is {time() - time_bbox}')
 
                 ground_truth_boxes = centerwhd_2nodes(label_xyzwhd, point=(0, 0, 0))
             
@@ -99,12 +126,14 @@ class DetectionEvaluator:
                 # create_boxmask(ground_truth_boxes, selected_box, image_shape=shape, name=name)
                 for bbox in pred_bboxes:
                     hmap_score, x1, y1, z1, x2, y2, z2 = bbox
-                    txt_path = f"{self._config['lymph_nodes_data_path']}/txts/{det_file}{self._config['model_name']}_{number_epoch}/"
+                    txt_path = f"{self._config['image_save_path']}/plot/bbox_txt/{det_file}{self._config['model_name']}_{number_epoch}_{timesteamp}/"
                     txt_paths.append(txt_path)
                     if not os.path.exists(txt_path):
                         os.makedirs(txt_path)
                     with open(f"{txt_path}/{name}.txt", 'a') as f:
-                        f.write(f'nodule {hmap_score} {x1} {y1} {z1} {x2} {y2} {z2} {shape}\n')
+                        # print(f'in the pred writing the shape is {str(shape).replace(" ", "")}')
+                        f.write(f'nodule {hmap_score} {x1} {y1} {z1} {x2} {y2} {z2} {str(shape).replace(" ", "")}\n')
+                
             # print(f'the no pred dia is {no_pred_dia}') 
             # print(f'the confidence is {confidence}')
             # print(f'the model path is {model_path}')
@@ -115,24 +144,43 @@ class DetectionEvaluator:
 
 def pool_nms(heat, kernel):
     pad = (kernel - 1) // 2
-
+    if isinstance(heat, np.ndarray):
+        heat = torch.from_numpy(heat)
+    time_nn_func = time()
+    if heat.device == 'cuda:0':
+        pass
+    else:
+        heat = heat.cuda()
     hmax = nn.functional.max_pool3d(heat, (kernel, kernel, kernel), stride=1, padding=pad)
+    heat = heat.cpu()
+    hmax = hmax.cpu()
+    # print(f'the time of nn_function pool3d is {time() - time_nn_func}')
+    # print(f'the device of heat is {heat.device}')
     keep = (hmax == heat).float()
     return heat * keep
 
 
 def decode_bbox(config, pred_hms, pred_whds, pred_offsets, scale, confidence, reduce, point, cuda):
-
+    # print(f'the shape of pre_heat is {pred_hms.shape}')
+    time_pool = time()
     pred_hms    = pool_nms(pred_hms, kernel = config['decode_box_kernel_size'])
-    heat_map    = pred_hms[0, :, :, :].cpu()
-    pred_whd    = pred_whds[0, :, :, :].cpu()
-    pred_offset = pred_offsets[0, :, :, :].cpu()
-
+    # print(f'the time of pool_nms func is {time() - time_pool}')
+    # print(f'after pool nms, the shape of pre_heat is {pred_hms.shape}')
+    # print(f'the shape of pred_whd is {pred_whds.shape}')
+    # print(f'the shape of pred_offset is {pred_offsets.shape}')
+    # print(f'the shape of pre_heat is {pred_hms.shape}')
+    heat_map    = pred_hms[0, :, :, :, :]
+    pred_whd    = pred_whds[0, :, :, :, :]
+    pred_offset = pred_offsets[0, :, :, :, :]
+    # print(f'after[0,:,:,:,:], the shape of pre_heat is {heat_map.shape}')
+    # print(f'after[0,:,:,:,:], the shape of pred_whd is {pred_whd.shape}')
+    # print(f'after[0,:,:,:,:], the shape of pred_offset is {pred_offset.shape}')
+    # print(f'the maximum number in the pred_hmap is {heat_map.max()}')
     mask = torch.from_numpy(np.where(heat_map > confidence, 1, 0)).squeeze(1).bool()
     mask.cuda()
     # mask[0, 50, 60, 30] = 1
     indices = np.argwhere(mask == 1)
-
+    # print(indices)
     xyzwhds = []
     hmap_scores = []
     for i in range(indices.shape[1]):
@@ -217,7 +265,7 @@ def sliding_window_3d_volume_padded(arr, patch_size, stride, padding_value=0):
                 patches.append(add)
                 order += 1
     # return np.array(patches)
-    return patches
+    return patches, arr_padded.shape
 
 
 
@@ -249,6 +297,7 @@ def nms_(dets, thres):
     :param thres: for example 0.5
     :return: the rest ids of dets
     '''
+    # print(f'dets is {dets}')
     x1 = [det[1] for det in dets]
     y1 = [det[2] for det in dets]
     z1 = [det[3] for det in dets]
@@ -343,7 +392,7 @@ def name2coord(config, part, mhd_name):
 import numpy as np
 
 def place_small_image_in_large_image(large_image, small_image, start_coords):
-    
+
     if (start_coords[0] < 0 or start_coords[1] < 0 or start_coords[2] < 0 or
             start_coords[0] + small_image.shape[-3] > large_image.shape[-3] or
             start_coords[1] + small_image.shape[-2] > large_image.shape[-2] or
@@ -416,7 +465,7 @@ def centerwhd_2nodes(xyzwhds, point, hmap_scores=None):
             result.append([x1, y1, z1, x2, y2, z2])
 
         return result
-    
+  
 
 def normal_list(list):
     new_list = []
@@ -427,3 +476,40 @@ def normal_list(list):
             for l in lit:
                 new_list.append(l)
     return new_list
+
+
+
+
+# if __name__ == '__main__':
+    
+    # from models.swin_unet3d_v1 import swinUnet_p_3D
+    # import torch
+    # import argparse
+    # from utils.io_v1 import get_config
+    # from plot.sample_2 import plot
+    # torch.multiprocessing.set_start_method('spawn')
+    # parser = argparse.ArgumentParser()
+
+
+    # parser.add_argument("--config", type=str, default='lymph_nodes_det')
+    # args = parser.parse_args()
+
+    # # Get relevant configs
+    # config = get_config(args.config)
+
+    # x = torch.randn((1, 1, 160, 160, 160))
+    # window_size = [i // 32 for i in x.shape[2:]]
+    # model = swinUnet_p_3D(hidden_dim=96, layers=(2, 2, 6, 2), heads=(3, 6, 12, 24),
+    #                     window_size=window_size, in_channel=1, num_classes=64
+    #                     )
+    # model_path = '/public_bme/data/xiongjl/uii/checkpoints/0912_v1_swin_crop160_hmapv4-1485.pt'
+    # model.load_state_dict(torch.load(model_path)['model'])
+    # model = model.cuda()
+
+    # evaluator = DetectionEvaluator(config)
+    # txt_paths = evaluator(model, 50, '295628') # generate the txt file
+    # if len(txt_paths) == 0:   # txt_path is the whole path 
+    #     print('txt_path is None...mean no nodes be detected, so will not do the plot function, and no image and txt will be saved')
+    # else:
+    #     metric_scores = plot(config, txt_paths, 50, '295628')
+    #     print(metric_scores['AP_IoU_0.01'])
